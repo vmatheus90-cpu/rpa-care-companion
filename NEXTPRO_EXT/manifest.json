@@ -1,0 +1,20 @@
+{
+  "manifest_version": 3,
+  "name": "Lovable Pro",
+  "version": "15.3.0",
+  "author": "Nexus Pro",
+  "homepage_url": "https://nexxus-pro.online",
+  "description": "Extensão desenvolvida para Lovable.",
+  "icons": { "16": "icon.png", "48": "icon.png", "128": "icon.png" },
+  "permissions": ["storage"],
+  "host_permissions": ["https://lovable.dev/*", "https://*.lovable.dev/*"],
+  "content_scripts": [{
+    "matches": ["https://lovable.dev/*", "https://*.lovable.dev/*"],
+    "js": ["content.js"],
+    "run_at": "document_idle"
+  }],
+  "web_accessible_resources": [{
+    "resources": ["payload.js", "extensao-login.js"],
+    "matches": ["https://lovable.dev/*", "https://*.lovable.dev/*"]
+  }]
+}
