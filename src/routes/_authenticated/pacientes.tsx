@@ -10,7 +10,7 @@ import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 import { Plus, Search, Pencil, Trash2, Eye, FlaskConical, Play, Loader2 } from "lucide-react";
 import { addDemoPatient } from "@/lib/demo-patient";
-import { formatTime, statusLabel, nowBrasiliaLocalInput } from "@/lib/rpa-utils";
+import { formatTime, statusLabel, nowBrasiliaLocalInput, nextEvalFrom } from "@/lib/rpa-utils";
 import { setSelectedPatientId } from "@/lib/patient-context";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
@@ -139,25 +139,35 @@ function PacientesPage() {
   }
 
   async function handleStartEvaluation(p: { id: string; nome: string; status: string }) {
-    if (p.status === "em_avaliacao") {
-      toast.info(`${p.nome} já está em avaliação.`);
-      return;
-    }
     setStartingId(p.id);
     try {
+      if (p.status === "em_avaliacao") {
+        toast.info(`${p.nome} já está em avaliação — abrindo o registro.`);
+        setSelectedPatientId(p.id);
+        navigate({ to: "/avaliacoes" });
+        return;
+      }
+
+      // Inicia o timer de 15 minutos já persistido no banco (sobrevive a reload/troca de tela)
+      const proxima = nextEvalFrom(new Date().toISOString(), 15);
       const { error } = await supabase
         .from("patients")
-        .update({ status: "em_avaliacao" })
+        .update({ status: "em_avaliacao", proxima_avaliacao: proxima })
         .eq("id", p.id);
       if (error) {
         toast.error(error.message);
         return;
       }
-      toast.success(`${p.nome} está em avaliação`);
+
+      toast.success(`${p.nome} em avaliação — timer de 15 min iniciado`);
       qc.invalidateQueries({ queryKey: ["patients-list"] });
       qc.invalidateQueries({ queryKey: ["dashboard-patients"] });
       qc.invalidateQueries({ queryKey: ["dashboard-kpis"] });
       qc.invalidateQueries({ queryKey: ["active-patients"] });
+
+      // Leva direto para o preenchimento do Aldrete (e daí para os sinais vitais)
+      setSelectedPatientId(p.id);
+      navigate({ to: "/avaliacoes" });
     } finally {
       setStartingId(null);
     }
