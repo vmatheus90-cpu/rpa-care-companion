@@ -142,11 +142,16 @@ function DashboardPage() {
                     p.status === "pronto_para_alta" ? "text-primary font-medium" : "text-foreground")}>
                     {statusLabel(p.status)}
                   </td>
+                  {/* Ações da linha: SOMENTE visualizar.
+                      O botão de "reiniciar contagem regressiva" não existe no dashboard —
+                      o próximo horário de avaliação é definido ao salvar o escore Aldrete. */}
                   <td className="py-3.5 text-right pr-2">
                     <button
+                      type="button"
                       onClick={() => openPatient(p.id)}
-                      className="p-1.5 rounded hover:bg-muted text-muted-foreground"
+                      className="p-1.5 rounded text-muted-foreground transition-colors hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
                       aria-label="Visualizar paciente"
+                      title="Visualizar paciente"
                     >
                       <Eye className="h-4 w-4" />
                     </button>
