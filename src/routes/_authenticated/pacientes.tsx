@@ -96,13 +96,13 @@ function PacientesPage() {
     } else {
       const { data, error } = await supabase.from("patients").insert(payload).select("id").single();
       if (error || !data) { toast.error(error?.message ?? "Falha ao cadastrar"); return; }
-      toast.success("Paciente cadastrado — registre Aldrete e sinais vitais");
+      toast.success("Paciente cadastrado — registre a avaliação de Aldrete");
       setOpen(false);
       qc.invalidateQueries({ queryKey: ["patients-list"] });
       qc.invalidateQueries({ queryKey: ["dashboard-patients"] });
       qc.invalidateQueries({ queryKey: ["dashboard-kpis"] });
       setSelectedPatientId(data.id);
-      navigate({ to: "/avaliacoes", search: { next: "sinais-vitais" } as never });
+      navigate({ to: "/avaliacoes" });
     }
   }
 

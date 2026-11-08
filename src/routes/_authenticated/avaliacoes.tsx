@@ -15,7 +15,6 @@ import { cn } from "@/lib/utils";
 
 export const Route = createFileRoute("/_authenticated/avaliacoes")({
   component: AvaliacoesPage,
-  validateSearch: (s: Record<string, unknown>) => ({ next: s.next === "sinais-vitais" ? "sinais-vitais" : undefined }),
 });
 
 const CATS = [
@@ -37,6 +36,7 @@ function AvaliacoesPage() {
     atividade: 2, respiracao: 2, circulacao: 1, consciencia: 2, saturacao: 2,
   });
   const [countdown, setCountdown] = useState<string>("--:--");
+  const [saving, setSaving] = useState(false);
 
   const { data: patients = [] } = useActivePatients();
 
@@ -76,32 +76,48 @@ function AvaliacoesPage() {
   }, [patient?.proxima_avaliacao]);
 
   async function handleSave() {
-    if (!patient) return;
-    const next = nextEvalFrom(new Date().toISOString(), 15);
-    const status = total >= 9 ? "pronto_para_alta" : "em_avaliacao";
-    const { error: e1 } = await supabase.from("aldrete_evaluations").insert({
-      patient_id: patient.id, ...scores, total,
-    });
-    if (e1) { toast.error(e1.message); return; }
-    await supabase.from("patients").update({ proxima_avaliacao: next, status }).eq("id", patient.id);
-    if (total >= 9) {
-      await supabase.from("alerts").insert({
-        patient_id: patient.id, tipo: "apto_alta", prioridade: "alta",
-        mensagem: `${patient.nome} apto para alta (Aldrete ${total}/10).`,
+    if (!patient || saving) return;
+    setSaving(true);
+    try {
+      const nowIso = new Date().toISOString();
+      const next = nextEvalFrom(nowIso, 15);
+      const status = total >= 9 ? "pronto_para_alta" : "em_avaliacao";
+
+      const { error: e1 } = await supabase.from("aldrete_evaluations").insert({
+        patient_id: patient.id, ...scores, total, evaluated_at: nowIso,
       });
-    } else if (total <= 6) {
-      await supabase.from("alerts").insert({
-        patient_id: patient.id, tipo: "aldrete_baixo", prioridade: "critica",
-        mensagem: `${patient.nome}: Aldrete ${total}/10. Atenção.`,
-      });
+      if (e1) { toast.error(e1.message); return; }
+
+      const { error: e2 } = await supabase
+        .from("patients")
+        .update({ proxima_avaliacao: next, status })
+        .eq("id", patient.id);
+      if (e2) { toast.error(e2.message); return; }
+
+      if (total >= 9) {
+        await supabase.from("alerts").insert({
+          patient_id: patient.id, tipo: "apto_alta", prioridade: "alta",
+          mensagem: `${patient.nome} apto para alta (Aldrete ${total}/10).`,
+        });
+      } else if (total <= 6) {
+        await supabase.from("alerts").insert({
+          patient_id: patient.id, tipo: "aldrete_baixo", prioridade: "critica",
+          mensagem: `${patient.nome}: Aldrete ${total}/10. Atenção.`,
+        });
+      }
+
+      toast.success(`Avaliação salva — Aldrete ${total}/10`);
+      await Promise.all([
+        qc.invalidateQueries({ queryKey: ["aldrete-history"] }),
+        qc.invalidateQueries({ queryKey: ["dashboard-patients"] }),
+        qc.invalidateQueries({ queryKey: ["dashboard-kpis"] }),
+        qc.invalidateQueries({ queryKey: ["active-patients"] }),
+        qc.invalidateQueries({ queryKey: ["unread-alerts"] }),
+      ]);
+      navigate({ to: "/dashboard" });
+    } finally {
+      setSaving(false);
     }
-    toast.success(`Avaliação salva — Aldrete ${total}/10`);
-    qc.invalidateQueries({ queryKey: ["aldrete-history"] });
-    qc.invalidateQueries({ queryKey: ["dashboard-patients"] });
-    qc.invalidateQueries({ queryKey: ["dashboard-kpis"] });
-    qc.invalidateQueries({ queryKey: ["active-patients"] });
-    qc.invalidateQueries({ queryKey: ["unread-alerts"] });
-    navigate({ to: "/sinais-vitais", search: {} as never });
   }
 
   return (
@@ -217,7 +233,9 @@ function AvaliacoesPage() {
         <Button variant="outline" onClick={() => setScores({ atividade: 0, respiracao: 0, circulacao: 0, consciencia: 0, saturacao: 0 })}>
           CANCELAR
         </Button>
-        <Button onClick={handleSave} disabled={!patient}>SALVAR AVALIAÇÃO</Button>
+        <Button onClick={handleSave} disabled={!patient || saving}>
+          {saving ? "SALVANDO..." : "SALVAR E CONCLUIR"}
+        </Button>
       </div>
     </div>
   );
