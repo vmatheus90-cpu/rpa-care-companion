@@ -8,11 +8,10 @@ import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
-import { Plus, Search, Pencil, Trash2, Eye, FlaskConical, Play, Loader2 } from "lucide-react";
+import { Plus, Search, Pencil, Trash2, Eye, FlaskConical } from "lucide-react";
 import { addDemoPatient } from "@/lib/demo-patient";
-import { formatTime, statusLabel, nowBrasiliaLocalInput, nextEvalFrom } from "@/lib/rpa-utils";
+import { formatTime, statusLabel, nowBrasiliaLocalInput } from "@/lib/rpa-utils";
 import { setSelectedPatientId } from "@/lib/patient-context";
-import { cn } from "@/lib/utils";
 import { toast } from "sonner";
 
 export const Route = createFileRoute("/_authenticated/pacientes")({
@@ -41,7 +40,6 @@ function PacientesPage() {
   const [form, setForm] = useState<PatientForm>(emptyForm);
   const [deleteId, setDeleteId] = useState<string | null>(null);
   const [demoLoading, setDemoLoading] = useState(false);
-  const [startingId, setStartingId] = useState<string | null>(null);
 
   const { data: patients = [] } = useQuery({
     queryKey: ["patients-list", search],
@@ -138,41 +136,6 @@ function PacientesPage() {
     }
   }
 
-  async function handleStartEvaluation(p: { id: string; nome: string; status: string }) {
-    setStartingId(p.id);
-    try {
-      if (p.status === "em_avaliacao") {
-        toast.info(`${p.nome} já está em avaliação — abrindo o registro.`);
-        setSelectedPatientId(p.id);
-        navigate({ to: "/avaliacoes" });
-        return;
-      }
-
-      // Inicia o timer de 15 minutos já persistido no banco (sobrevive a reload/troca de tela)
-      const proxima = nextEvalFrom(new Date().toISOString(), 15);
-      const { error } = await supabase
-        .from("patients")
-        .update({ status: "em_avaliacao", proxima_avaliacao: proxima })
-        .eq("id", p.id);
-      if (error) {
-        toast.error(error.message);
-        return;
-      }
-
-      toast.success(`${p.nome} em avaliação — timer de 15 min iniciado`);
-      qc.invalidateQueries({ queryKey: ["patients-list"] });
-      qc.invalidateQueries({ queryKey: ["dashboard-patients"] });
-      qc.invalidateQueries({ queryKey: ["dashboard-kpis"] });
-      qc.invalidateQueries({ queryKey: ["active-patients"] });
-
-      // Leva direto para o preenchimento do Aldrete (e daí para os sinais vitais)
-      setSelectedPatientId(p.id);
-      navigate({ to: "/avaliacoes" });
-    } finally {
-      setStartingId(null);
-    }
-  }
-
   function openPatient(id: string) {
     setSelectedPatientId(id);
     navigate({ to: "/avaliacoes" });
@@ -230,17 +193,6 @@ function PacientesPage() {
                   <td className="py-3">{statusLabel(p.status)}</td>
                   <td className="py-3 pr-2">
                     <div className="flex items-center justify-end gap-1">
-                      <button
-                        onClick={() => handleStartEvaluation(p)}
-                        disabled={startingId === p.id}
-                        className="p-1.5 rounded hover:bg-muted disabled:opacity-50 disabled:hover:bg-transparent transition-colors"
-                        aria-label="Colocar em avaliação"
-                        title={p.status === "em_avaliacao" ? "Paciente já está em avaliação" : "Colocar em avaliação"}
-                      >
-                        {startingId === p.id
-                          ? <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />
-                          : <Play className={cn("h-4 w-4", p.status === "em_avaliacao" ? "text-primary fill-primary" : "text-muted-foreground")} />}
-                      </button>
                       <button onClick={() => openPatient(p.id)} className="p-1.5 rounded hover:bg-muted text-muted-foreground" aria-label="Ver"><Eye className="h-4 w-4" /></button>
                       <button onClick={() => openEdit(p)} className="p-1.5 rounded hover:bg-muted text-muted-foreground" aria-label="Editar"><Pencil className="h-4 w-4" /></button>
                       <button onClick={() => setDeleteId(p.id)} className="p-1.5 rounded hover:bg-muted text-danger" aria-label="Excluir"><Trash2 className="h-4 w-4" /></button>
