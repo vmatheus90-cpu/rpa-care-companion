@@ -8,7 +8,8 @@ import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
-import { Plus, Search, Pencil, Trash2, Eye } from "lucide-react";
+import { Plus, Search, Pencil, Trash2, Eye, FlaskConical } from "lucide-react";
+import { addDemoPatient } from "@/lib/demo-patient";
 import { formatTime, statusLabel, nowBrasiliaLocalInput } from "@/lib/rpa-utils";
 import { setSelectedPatientId } from "@/lib/patient-context";
 import { toast } from "sonner";
@@ -38,6 +39,7 @@ function PacientesPage() {
   const [editing, setEditing] = useState<string | null>(null);
   const [form, setForm] = useState<PatientForm>(emptyForm);
   const [deleteId, setDeleteId] = useState<string | null>(null);
+  const [demoLoading, setDemoLoading] = useState(false);
 
   const { data: patients = [] } = useQuery({
     queryKey: ["patients-list", search],
@@ -112,6 +114,28 @@ function PacientesPage() {
     setDeleteId(null);
   }
 
+  async function handleAddDemo() {
+    setDemoLoading(true);
+    try {
+      const { id, created } = await addDemoPatient();
+      toast.success(
+        created
+          ? "Paciente fictício adicionado à RPA (com avaliações, sinais vitais e medicações)"
+          : "Paciente fictício já existia — abrindo o registro",
+      );
+      qc.invalidateQueries({ queryKey: ["patients-list"] });
+      qc.invalidateQueries({ queryKey: ["dashboard-patients"] });
+      qc.invalidateQueries({ queryKey: ["dashboard-kpis"] });
+      qc.invalidateQueries({ queryKey: ["active-patients"] });
+      setSelectedPatientId(id);
+      navigate({ to: "/avaliacoes" });
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "Falha ao adicionar paciente fictício");
+    } finally {
+      setDemoLoading(false);
+    }
+  }
+
   function openPatient(id: string) {
     setSelectedPatientId(id);
     navigate({ to: "/avaliacoes" });
@@ -133,6 +157,10 @@ function PacientesPage() {
           </div>
           <Button onClick={openCreate} className="gap-2">
             <Plus className="h-4 w-4" />Novo paciente
+          </Button>
+          <Button variant="outline" onClick={handleAddDemo} disabled={demoLoading} className="gap-2">
+            <FlaskConical className="h-4 w-4" />
+            {demoLoading ? "Adicionando..." : "Paciente demo"}
           </Button>
         </div>
       </div>
