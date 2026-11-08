@@ -86,14 +86,15 @@ function AvaliacoesPage() {
       const { error: e1 } = await supabase.from("aldrete_evaluations").insert({
         patient_id: patient.id, ...scores, total, evaluated_at: nowIso,
       });
-      if (e1) { toast.error(e1.message); return; }
+      if (e1) throw new Error(e1.message);
 
       const { error: e2 } = await supabase
         .from("patients")
         .update({ proxima_avaliacao: next, status })
         .eq("id", patient.id);
-      if (e2) { toast.error(e2.message); return; }
+      if (e2) throw new Error(e2.message);
 
+      // Alertas são complementares: nunca bloqueiam a conclusão da avaliação.
       if (total >= 9) {
         await supabase.from("alerts").insert({
           patient_id: patient.id, tipo: "apto_alta", prioridade: "alta",
@@ -107,14 +108,19 @@ function AvaliacoesPage() {
       }
 
       toast.success(`Avaliação salva — Aldrete ${total}/10`);
-      await Promise.all([
+
+      // Volta para o Dashboard na hora: o refresh das listas roda em background,
+      // sem segurar a navegação enquanto os refetch terminam.
+      navigate({ to: "/dashboard" });
+      void Promise.all([
         qc.invalidateQueries({ queryKey: ["aldrete-history"] }),
         qc.invalidateQueries({ queryKey: ["dashboard-patients"] }),
         qc.invalidateQueries({ queryKey: ["dashboard-kpis"] }),
         qc.invalidateQueries({ queryKey: ["active-patients"] }),
         qc.invalidateQueries({ queryKey: ["unread-alerts"] }),
       ]);
-      navigate({ to: "/dashboard" });
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Não foi possível salvar a avaliação.");
     } finally {
       setSaving(false);
     }
@@ -233,7 +239,7 @@ function AvaliacoesPage() {
         <Button variant="outline" onClick={() => setScores({ atividade: 0, respiracao: 0, circulacao: 0, consciencia: 0, saturacao: 0 })}>
           CANCELAR
         </Button>
-        <Button onClick={handleSave} disabled={!patient || saving}>
+        <Button type="button" onClick={handleSave} disabled={!patient || saving}>
           {saving ? "SALVANDO..." : "SALVAR E CONCLUIR"}
         </Button>
       </div>
